@@ -213,6 +213,7 @@ public class CoverageAddingMethodVisitor extends MethodVisitor {
     }
 
     public static class LineData {
+        /** If the index is < 0 it represents that the line was excluded from coverage, eg: {@link #NO_COVERAGE} */
         public final int idx;
         public final String line;
 

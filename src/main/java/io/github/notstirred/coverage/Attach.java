@@ -10,7 +10,6 @@ import org.objectweb.asm.tree.MethodNode;
 
 import java.io.*;
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.ArrayList;
@@ -36,21 +35,11 @@ public class Attach {
     }
 
     static {
-        // Force load BytecodeCoverageData on system classloader before shutdown hook.
-        try {
-            Class<?> clazz = ClassLoader.getSystemClassLoader().loadClass("io.github.notstirred.coverage.BytecodeCoverageData");
-            Field dataField = clazz.getField("DATA");
-            byte[] data = (byte[]) dataField.get(null);
-        } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException("Couldn't preload for bytecode coverage!", e);
-        }
-
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Wait for data to be transferred to the system classloader before continuing.
             try {
-                Class<?> clazz = ClassLoader.getSystemClassLoader().loadClass("io.github.notstirred.coverage.BytecodeCoverageData");
-                Field writtenField = clazz.getField("written");
                 int i = 0;
-                while (!writtenField.getBoolean(null)) {
+                while (!BytecodeCoverageData.getSharedWritten()) {
                     if (i > 100) {
                         System.out.println("Timed out while waiting for bytecode coverage data.");
                         return;
@@ -58,21 +47,12 @@ public class Attach {
                     Thread.sleep(50);
                     i++;
                 }
-            } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
-                throw new RuntimeException("Failed to receive bytecode coverage data.", e);
             } catch (InterruptedException e) {
                 System.out.println("Bytecode coverage receiving interrupted!");
                 return;
             }
 
-            byte[] data;
-            try {
-                Class<?> clazz = ClassLoader.getSystemClassLoader().loadClass("io.github.notstirred.coverage.BytecodeCoverageData");
-                Field dataField = clazz.getField("DATA");
-                data = (byte[]) dataField.get(null);
-            } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
-                throw new RuntimeException("Couldn't preload for bytecode coverage!", e);
-            }
+            byte[] data = BytecodeCoverageData.getSharedData();
 
             TableTag indexTable = table(thead(tr(td("Package Name"), td("Coverage")))).withClass("sortable");
             METHOD_INDICES.forEach((packageName, methodsByClass) -> {
@@ -139,15 +119,15 @@ public class Attach {
         }));
     }
 
-    private static float calculateCoverageForRange(IntPair indices, byte[] data) {
-        int size = indices.b - indices.a;
+    private static float calculateCoverageForRange(IntPair range, byte[] data) {
+        int size = range.b - range.a;
 
         if (size == 0) {
             return 100.0f;
         }
 
         int total = 0;
-        for (int i = indices.a; i < indices.b; i++) {
+        for (int i = range.a; i < range.b; i++) {
             total += data[i];
         }
         return ((float) total / (float) size) * 100;
