@@ -31,6 +31,11 @@ public class Transformer implements ClassFileTransformer {
         for (int i = 0, methodsSize = methods.size(); i < methodsSize; i++) {
             MethodNode methodNode = methods.get(i);
 
+            if (methodNode.instructions.size() == 0) {
+                // method is abstract or an interface, don't track it to avoid showing in coverage output.
+                continue;
+            }
+
             int startIdx = idx;
             MethodNode dstMethodNode = new MethodNode(ASM9, methodNode.access, methodNode.name, methodNode.desc, methodNode.signature, methodNode.exceptions.toArray(new String[0]));
             CoverageAddingMethodVisitor methodVisitor = new CoverageAddingMethodVisitor(dstMethodNode);
