@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.6'
+}
+
+group = 'io.github.notstirred'
+version = '1.0-SNAPSHOT'
+
+jar {
+    manifest {
+        attributes 'Premain-Class': 'io.github.notstirred.coverage.Attach',
+                'Agent-Class': 'io.github.notstirred.coverage.Attach',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true'
+    }
+}
+
+compileJava {
+    javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
+
+configurations {
+    include
+    implementation.extendsFrom(include)
+}
+
+repositories {
+    mavenCentral()
+}
+
+tasks.shadowJar {
+    configurations = [ project.configurations.include ]
+    minimize()
+}
+
+dependencies {
+    implementation 'org.ow2.asm:asm:9.6'
+    implementation 'org.ow2.asm:asm-tree:9.6'
+    implementation 'org.ow2.asm:asm-util:9.6'
+    implementation 'org.ow2.asm:asm-commons:9.6'
+
+    implementation 'it.unimi.dsi:fastutil:8.5.15'
+
+    implementation 'com.google.code.gson:gson:2.13.1'
+
+    include 'com.j2html:j2html:1.6.0'
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}
