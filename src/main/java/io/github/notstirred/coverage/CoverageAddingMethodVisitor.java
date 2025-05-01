@@ -1,11 +1,11 @@
 package io.github.notstirred.coverage;
 
 import org.objectweb.asm.*;
-import org.objectweb.asm.util.Textifier;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.objectweb.asm.Opcodes.ASM9;
 
@@ -15,17 +15,27 @@ import static org.objectweb.asm.Opcodes.ASM9;
  *   <li>Adding coverage tracking instructions via {@link #addCoverageByteCode()}</li>
  *   <li>Converting bytecode to a human-readable form while keeping coverage tracking metadata intact via {@link #addLineData(int)}</li>
  * </ul>
+ *
+ * <br/><br/>
+ *
+ * Each visit method must take care to call either:
+ * <ul>
+ *     <li>{@link #addCoverageByteCode()} if it adds coverage tracking</li>
+ *     <li>{@link #addLineDataNoCoverage()} if it doesn't</li>
+ * </ul>
+ * If a single method fails to do so, {@link LabelRememberingTextifier} will be
+ * out of sync and label links will be corrupted.
  */
 public class CoverageAddingMethodVisitor extends MethodVisitor {
     public static final int NO_COVERAGE = -1;
 
-    private final Textifier printer;
+    private final LabelRememberingTextifier printer;
 
     private final List<LineData> lines = new ArrayList<>();
 
     protected CoverageAddingMethodVisitor(MethodVisitor methodVisitor) {
         super(ASM9, methodVisitor);
-        this.printer = new Textifier(ASM9) { };
+        this.printer = new LabelRememberingTextifier(ASM9);
     }
 
     /**
@@ -45,8 +55,17 @@ public class CoverageAddingMethodVisitor extends MethodVisitor {
         super.visitInsn(Opcodes.BASTORE);
     }
 
+    private void addLineDataNoCoverage() {
+        addLineData(NO_COVERAGE);
+    }
+
     private void addLineData(int idx) {
-        this.lines.add(new LineData(idx, this.printer.text.get(this.printer.text.size() - 1)));
+        this.lines.add(new LineData(
+                idx,
+                this.printer.text.get(this.printer.text.size() - 1),
+                this.printer.getAndClearLabelReferences(),
+                Optional.ofNullable(this.printer.getAndClearLabelDefinition())
+        ));
     }
 
     @Override
@@ -174,52 +193,58 @@ public class CoverageAddingMethodVisitor extends MethodVisitor {
     @Override
     public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
         this.printer.visitLocalVariable(name, descriptor, signature, start, end, index);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         super.visitLocalVariable(name, descriptor, signature, start, end, index);
     }
 
     @Override
     public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] index, String descriptor, boolean visible) {
         this.printer.visitLocalVariableAnnotation(typeRef, typePath, start, end, index, descriptor, visible);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         return super.visitLocalVariableAnnotation(typeRef, typePath, start, end, index, descriptor, visible);
     }
 
     @Override
     public void visitMaxs(int maxStack, int maxLocals) {
         this.printer.visitMaxs(maxStack, maxLocals);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         super.visitMaxs(maxStack, maxLocals);
     }
 
     @Override
     public void visitFrame(int type, int numLocal, Object[] local, int numStack, Object[] stack) {
         this.printer.visitFrame(type, numLocal, local, numStack, stack);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         super.visitFrame(type, numLocal, local, numStack, stack);
     }
 
     @Override
     public void visitLineNumber(int line, Label start) {
         this.printer.visitLineNumber(line, start);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         super.visitLineNumber(line, start); // Don't add for line numbers
     }
+
     @Override
     public void visitLabel(Label label) {
         this.printer.visitLabel(label);
-        addLineData(NO_COVERAGE);
+        addLineDataNoCoverage();
         super.visitLabel(label); // Don't add for line numbers
     }
 
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     public static class LineData {
         /** If the index is < 0 it represents that the line was excluded from coverage, eg: {@link #NO_COVERAGE} */
         public final int idx;
         public final String line;
+        public final List<LabelData> labelReferences;
+        public final Optional<LabelData> labelDefinition;
 
-        public LineData(int idx, Object element) {
+        public LineData(int idx, Object element, List<LabelData> labelReferences, Optional<LabelData> labelDefinition) {
             this.idx = idx;
             this.line = elementToString(element);
+            this.labelReferences = labelReferences;
+            this.labelDefinition = labelDefinition;
         }
 
         private static String elementToString(Object element) {
@@ -230,6 +255,17 @@ public class CoverageAddingMethodVisitor extends MethodVisitor {
                 s.append(element);
             }
             return s.toString();
+        }
+    }
+
+    public static class LabelData {
+        public final String name;
+        /** The range within the line text that this label takes up */
+        public final IntPair range;
+
+        public LabelData(String name, IntPair range) {
+            this.name = name;
+            this.range = range;
         }
     }
 }

@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import j2html.tags.DomContent;
 import j2html.tags.specialized.BodyTag;
+import j2html.tags.specialized.DivTag;
 import j2html.tags.specialized.HtmlTag;
 import j2html.tags.specialized.TableTag;
 import org.objectweb.asm.tree.MethodNode;
@@ -69,14 +70,15 @@ public class Attach {
                     BodyTag body = body(h1(className));
                     methodIndices.forEach((indices, methodData) -> {
                         List<DomContent> elements = new ArrayList<>();
+                        String methodSig = methodData.methodNode.name + methodData.methodNode.desc;
                         methodData.lines.forEach(line -> {
                             if (line.idx < 0) { // this line isn't tracked by coverage (line numbers, labels, etc.)
-                                elements.add(div(line.line));
+                                elements.add(addLabelLinks(methodSig, line));
                             } else { // tracked by coverage
                                 if (data[line.idx] == 1) { // coverage hit
-                                    elements.add(div(line.line).withStyle("background-color: #AADD77;"));
+                                    elements.add(addLabelLinks(methodSig, line).withStyle("background-color: #AADD77;"));
                                 } else { // coverage miss
-                                    elements.add(div(line.line).withStyle("background-color: #DD7777;"));
+                                    elements.add(addLabelLinks(methodSig, line).withStyle("background-color: #d99;"));
                                 }
                             }
                         });
@@ -86,7 +88,7 @@ public class Attach {
                         body.with(
                             div(
                                 details(
-                                    summary(methodData.methodNode.name + methodData.methodNode.desc + " " + coverage + "%")
+                                    summary(methodSig + " " + coverage + "%")
                                         .withStyle("background-color: ccc; padding: 10px; border-radius: 2px;"),
                                     pre(elements.toArray(new DomContent[0]))
                                         .withStyle("margin: 0px; padding-bottom: 10px; padding-top: 5px;")
@@ -117,6 +119,37 @@ public class Attach {
                 e.printStackTrace();
             }
         }));
+    }
+
+    private static DivTag addLabelLinks(String methodSig, CoverageAddingMethodVisitor.LineData line) {
+        List<DomContent> elements = new ArrayList<>();
+
+        if (!line.labelReferences.isEmpty()) {
+            int idx = 0;
+            for (CoverageAddingMethodVisitor.LabelData labelReference : line.labelReferences) {
+                // add the string bit before this label
+                if (idx < labelReference.range.a) {
+                    elements.add(text(line.line.substring(idx, labelReference.range.a)));
+                    idx = labelReference.range.a;
+                }
+                // add the label link and L# text
+                String label = line.line.substring(idx, labelReference.range.b);
+                elements.add(a(label).withHref("#" + methodSig + "_" + label));
+                idx = labelReference.range.b;
+            }
+            // add the remaining text after the last label
+            if (idx < line.line.length()) {
+                elements.add(text(line.line.substring(idx)));
+            }
+        } else if (line.labelDefinition.isPresent()) {
+            elements.add(text(line.line));
+            elements.add(div()
+                    .withId(methodSig + "_" + line.line.substring(line.labelDefinition.get().range.a, line.labelDefinition.get().range.b))
+                    .withStyle("transform: translateY(-50vh);"));
+        } else {
+            elements.add(text(line.line));
+        }
+        return div(elements.toArray(new DomContent[0]));
     }
 
     private static float calculateCoverageForRange(IntPair range, byte[] data) {
