@@ -1,0 +1,46 @@
+.method-info-header {
+	background-color: ccc;
+	padding: 10px;
+	border-radius: 2px;
+}
+
+.bytecode-container {
+	margin: 0px;
+	padding-bottom: 10px;
+	padding-top: 5px;
+	display: grid;
+	grid-template-columns: min-content min-content 1fr;
+}
+
+.line-number-and-label-background {
+	z-index: -1;
+	grid-column: 1 / 3;
+}
+
+.odd-line.line-number-and-label-background { background-color: #ccc; }
+.even-line.line-number-and-label-background { background-color: #ddd; }
+
+.label-define {
+	grid-column: 1;
+}
+
+.line-number {
+	grid-column: 2;
+	text-align: right;
+	padding-left: 20px;
+	padding-right: 5px;
+}
+
+.bytecode {
+	grid-column: 3;
+}
+
+
+.bytecode.odd-line.coverage-hit { background-color: #97c770; }
+.bytecode.even-line.coverage-hit { background-color: #ad7; }
+
+.bytecode.odd-line.coverage-miss { background-color: #c78787; }
+.bytecode.even-line.coverage-miss { background-color: #d99; }
+
+.bytecode.odd-line.coverage-ignored { background-color: #f0f0f0; }
+.bytecode.even-line.coverage-ignored { background-color: #f7f7f7; }
