@@ -3,10 +3,7 @@ package io.github.notstirred.coverage;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import j2html.tags.DomContent;
-import j2html.tags.specialized.BodyTag;
-import j2html.tags.specialized.DivTag;
-import j2html.tags.specialized.HtmlTag;
-import j2html.tags.specialized.TableTag;
+import j2html.tags.specialized.*;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.io.*;
@@ -63,7 +60,12 @@ public class Attach {
                     double[] methodTotal = new double[] { 0.0 };
                     int[] methodCount = new int[] { 0 };
 
-                    BodyTag body = body(h1(className));
+
+                    BodyTag body = body(div(
+                        h1(className).withStyle("flex-grow:1;"),
+                        div(createDarkModeButton()).withStyle("margin-top:auto;margin-bottom:auto;")
+                    ).withStyle("display:flex; width:100%"));
+
                     methodIndices.forEach((indices, methodData) -> {
                         List<DomContent> elements = new ArrayList<>();
                         String methodSig = methodData.methodNode.name + methodData.methodNode.desc;
@@ -119,7 +121,7 @@ public class Attach {
                                 ).withCondOpen(true)
                                     .withStyle("border-radius: 2px;")
                             ).withStyle("padding: 10px; padding-top: 0px;")
-                        ).withStyle("background-color: #fff;");
+                        );
                     });
 
                     packageCount[0] += methodCount[0];
@@ -131,10 +133,20 @@ public class Attach {
 
                 indexTable.with(tr(td(a(packageName).withHref(packageName + "/index.html")), td(packageCount[0] == 0 ? "N/A" : (packageTotal[0] / packageCount[0] + "%"))));
 
-                writeFile(packageName + "/index.html", html(body(packageTable)));
+                writeFile(packageName + "/index.html", html(body(
+                    div(
+                        div(packageTable).withStyle("flex-grow:1"),
+                        div(createDarkModeButton()).withStyle("")
+                    ).withStyle("display: flex; width:100%;")
+                )));
             });
 
-            writeFile("index.html", html(body(indexTable)));
+            writeFile("index.html", html(body(
+                div(
+                    div(indexTable).withStyle("flex-grow:1"),
+                    div(createDarkModeButton()).withStyle("")
+                ).withStyle("display: flex; width:100%;")
+            )));
             Path path = USER_DIR.resolve("sortable.js");
             try (InputStream inputStream = Attach.class.getClassLoader().getResourceAsStream("sortable.js")) {
                 Files.copy(inputStream, path, StandardCopyOption.REPLACE_EXISTING);
@@ -142,14 +154,25 @@ public class Attach {
                 System.out.println("Failed to write file: " + path.toAbsolutePath());
                 e.printStackTrace();
             }
-            Path path2 = USER_DIR.resolve("style.css");
-            try (InputStream inputStream = Attach.class.getClassLoader().getResourceAsStream("style.css")) {
+            Path path2 = USER_DIR.resolve("theme.js");
+            try (InputStream inputStream = Attach.class.getClassLoader().getResourceAsStream("theme.js")) {
                 Files.copy(inputStream, path2, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                System.out.println("Failed to write file: " + path.toAbsolutePath());
+                System.out.println("Failed to write file: " + path2.toAbsolutePath());
+                e.printStackTrace();
+            }
+            Path path3 = USER_DIR.resolve("style.css");
+            try (InputStream inputStream = Attach.class.getClassLoader().getResourceAsStream("style.css")) {
+                Files.copy(inputStream, path3, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                System.out.println("Failed to write file: " + path3.toAbsolutePath());
                 e.printStackTrace();
             }
         }));
+    }
+
+    private static ButtonTag createDarkModeButton() {
+        return button("Switch to Dark Mode").withId("light-dark-mode-switch").attr("onClick", "darkMode()");
     }
 
     private static DivTag addLabelLinks(String methodSig, CoverageAddingMethodVisitor.LineData line, int rowIndex) {
@@ -208,6 +231,7 @@ public class Attach {
         try {
             content.with(head(
                     script().withSrc(String.valueOf(directory.relativize(USER_DIR).resolve("sortable.js"))),
+                    script().withSrc(String.valueOf(directory.relativize(USER_DIR).resolve("theme.js"))),
                     link().withRel("stylesheet").withHref(String.valueOf(directory.relativize(USER_DIR).resolve("style.css")))
             ));
 
